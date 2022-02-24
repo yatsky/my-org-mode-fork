@@ -467,34 +467,25 @@ This splices all the components into the list."
       (let ((exclude-regexp (org-publish-property :exclude project))
             (include-file-tags-regexp (org-publish-property :include-file-tags project)))
 	(if exclude-regexp
-	    (cl-remove-if
-	     (lambda (f)
-	       ;; Match against relative names, yet BASE-DIR file
-	       ;; names are absolute.
-	       (string-match exclude-regexp
-			     (file-relative-name f base-dir)))
-	     base-files)
+	    (setq base-files (cl-remove-if
+	                      (lambda (f)
+	                        ;; Match against relative names, yet BASE-DIR file
+	                        ;; names are absolute.
+	                        (string-match exclude-regexp
+			                      (file-relative-name f base-dir)))
+	                      base-files))
 	  base-files)
         (if include-file-tags-regexp
-            (cl-remove-if
-             (lambda (f)
-               ;; Open file and check if include-file-tags-regexp tag exists
-               ;; If it exists then remove file from base-files
-               (not (org-element-map (with-temp-buffer
-                                       (insert-file-contents f)
-                                       ;; (insert-file-contents "~/Dev/orgs/2022-01-04-203224-aws_solutions_architect_associate_exam.org")
-                                       (org-mode)
-                                       (org-element-parse-buffer))
-                        'keyword
-                      (lambda (keyword)
-                        (let ((key (org-element-property :key keyword))
-                              (val (org-element-property :value keyword)))
-                          (if (string= key "FILETAGS")
-                              (string-match-p include-file-tags-regexp val))))
-                      nil
-                      t)))
-             base-files)
-          base-files))
+            (setq base-files (cl-delete-if
+                              (lambda (f)
+                                ;; Open file and check if include-file-tags-regexp tag exists
+                                ;; If it exists then remove file from base-files
+                                (with-temp-buffer
+                                  (insert-file-contents (file-relative-name f base-dir))
+                                  (not (re-search-forward (concat "#\\+filetags.*" include-file-tags-regexp ".*") nil t 1))))
+                              base-files))
+          base-files)
+        base-files)
       ;; Sitemap file.
       (and (org-publish-property :auto-sitemap project)
 	   (list (expand-file-name
