@@ -861,6 +861,7 @@ This option can also be set with the OPTIONS keyword, e.g.,
   :type '(choice
 	  (const :tag "Ignore broken links" t)
 	  (const :tag "Mark broken links in output" mark)
+	  (const :tag "Show label in output, ignoring link" label)
 	  (const :tag "Raise an error" nil)))
 
 (defcustom org-export-snippet-translation-alist nil
@@ -1870,15 +1871,19 @@ Return a string."
       ;; `org-export-with-broken-links'.
       (cl-macrolet
 	  ((broken-link-handler
-	    (&rest body)
-	    `(condition-case err
-		 (progn ,@body)
-	       (org-link-broken
-		(pcase (plist-get info :with-broken-links)
-		  (`nil (user-error "Unable to resolve link: %S" (nth 1 err)))
-		  (`mark (org-export-data
-			  (format "[BROKEN LINK: %s]" (nth 1 err)) info))
-		  (_ nil))))))
+	     (&rest body)
+	     `(condition-case err
+		  (progn ,@body)
+	        (org-link-broken
+		 (pcase (plist-get info :with-broken-links)
+		   (`nil (user-error "Unable to resolve link: %S" (nth 1 err)))
+		   (`mark (org-export-data
+			   (format "[BROKEN LINK: %s]" (nth 1 err)) info))
+		   (`label (org-export-data
+
+			    (progn
+                              (format "%s" (nth 1 err))) info))
+		   (_ nil))))))
 	(let* ((type (org-element-type data))
 	       (parent (org-export-get-parent data))
 	       (results
@@ -4374,7 +4379,8 @@ INFO is a plist used as a communication channel.
 Return value can be the headline element matched in current parse
 tree or a file name.  Assume LINK type is either \"id\" or
 \"custom-id\".  Throw an error if no match is found."
-  (let ((id (org-element-property :path link)))
+  (let ((id (org-element-property :path link))
+        (contents (car (last link))))
     ;; First check if id is within the current parse tree.
     (or (org-element-map (plist-get info :parse-tree) 'headline
 	  (lambda (headline)
@@ -4384,7 +4390,7 @@ tree or a file name.  Assume LINK type is either \"id\" or
 	  info 'first-match)
 	;; Otherwise, look for external files.
 	(cdr (assoc id (plist-get info :id-alist)))
-	(signal 'org-link-broken (list id)))))
+	(signal 'org-link-broken (list contents)))))
 
 (defun org-export-resolve-radio-link (link info)
   "Return radio-target object referenced as LINK destination.
